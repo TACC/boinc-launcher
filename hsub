@@ -3,7 +3,7 @@
 import sys
 import copy
 import submit_api
-
+import subprocess
 
 # hsub: Submission script for the Herd Volunteer Computing Project
 # lwilson - TACC
@@ -15,34 +15,61 @@ if len(sys.argv) <= 1:
   exit()
 
 
+# Setup the batch preamble
+batch = submit_api.BATCH_DESC()
+batch.project = 'http://129.114.6.131/tacctest/'
+batch.authenticator = '1f289518a167969cc67523ba7d5ced8a'
+batch.app_name = "example_app"
+batch.batch_name = "testbatch"
+batch.jobs = []
+
 job_file=open(sys.argv[1], "r")
 
-for wu in job_file:
-  print wu
-
+job = submit_api.JOB_DESC()
 f = submit_api.FILE_DESC()
 f.mode = 'remote'
 f.url = 'http://isaac.ssl.berkeley.edu/validate_logic.txt'
 f.md5 = "eec5a142cea5202c9ab2e4575a8aaaa7"
 f.nbytes = 4250
 
-job = submit_api.JOB_DESC()
-job.files = [f]
+job.files=[f]
 
-batch = submit_api.BATCH_DESC()
-batch.project = 'http://129.114.6.131/tacctest/'
-batch.authenticator = '1f289518a167969cc67523ba7d5ced8a'
-batch.app_name = "example_app"
-batch.batch_name = "blah"
-batch.jobs = []
+for wu in job_file:
+  job.rsc_fpops_est = 1e9
+  command=wu.split()[0]
+  try:
+    fullcmd = subprocess.check_output(["which", command])
+  except subprocess.CalledProcessError as whe:`
+  #Determine if the command type using 'file'
+  try:
+    res = subprocess.check_output(["file", "-bi", fullcmd])
+    wut = (res.split(';',1)[0]).split('/',1)[1] 
+    if wut == "x-shellscript":
+      print "{} is a shell script. Ignoring...".format(fullcmd)
+    elif wut == "x-executable":
+      print "{} is an executable. Checking candidacy...".format(fullcmd)
+      #If in /bin or /usr/bin, clear for insertion
+      try:
+        path = subprocess.check_output(["dirname", fullcmd])
+        if path.rstrip() == "/bin" or path.rstrip()=="/usr/bin":
+          print "{} is a system binary. Migrating...".format(fullcmd)
+      except subprocess.CalledProcessError as pathe:
+        print pathe.returncode 
+      try:
+        libs = subprocess.check_output(["ldd", fullcmd])
+        print libs
+      except subprocess.CalledProcessError as libe:
+        print libe.returncode
+  except subprocess.CalledProcessError as e:
+    print e.returncode
+  
 
-for i in range(3):
-    job.rsc_fpops_est = i*1e9
-    job.command_line = '-i %s' %(i)
-    batch.jobs.append(copy.copy(job))
+#  job.command_line = wu.rstrip()
+  batch.jobs.append(copy.copy(job))
 
-r = submit_api.estimate_batch(batch)
-if r.tag == 'error':
-  print 'error: ', r.find('error_msg').text
-  exit()
-print 'estimated time: ', r.text, ' seconds'
+#r = submit_api.submit_batch(batch)
+
+#print "Batch Submitted"
+#print "---------------"
+#print "{} work unit(s)".format(len(batch.jobs))
+#print "Batch ID: {}".format(r[0].text)
