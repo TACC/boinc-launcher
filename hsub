@@ -19,7 +19,7 @@ if len(sys.argv) <= 1:
 batch = submit_api.BATCH_DESC()
 batch.project = 'http://129.114.6.131/tacctest/'
 batch.authenticator = '1f289518a167969cc67523ba7d5ced8a'
-batch.app_name = "example_app"
+batch.app_name = "herd"
 batch.batch_name = "testbatch"
 batch.jobs = []
 
@@ -39,7 +39,9 @@ for wu in job_file:
   command=wu.split()[0]
   try:
     fullcmd = subprocess.check_output(["which", command])
-  except subprocess.CalledProcessError as whe:`
+  except subprocess.CalledProcessError as whe:
+    fullcmd = command
+  print fullcmd
   #Determine if the command type using 'file'
   try:
     res = subprocess.check_output(["file", "-bi", fullcmd])
@@ -67,7 +69,7 @@ for wu in job_file:
 #  job.command_line = wu.rstrip()
   batch.jobs.append(copy.copy(job))
 
-#r = submit_api.submit_batch(batch)
+r = submit_api.submit_batch(batch)
 
 #print "Batch Submitted"
 #print "---------------"
