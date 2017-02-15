@@ -26,50 +26,68 @@ batch.jobs = []
 job_file=open(sys.argv[1], "r")
 
 job = submit_api.JOB_DESC()
-f = submit_api.FILE_DESC()
-f.mode = 'remote'
-f.url = 'http://isaac.ssl.berkeley.edu/validate_logic.txt'
-f.md5 = "eec5a142cea5202c9ab2e4575a8aaaa7"
-f.nbytes = 4250
-
-job.files=[f]
 
 for wu in job_file:
-  job.rsc_fpops_est = 1e9
   command=wu.split()[0]
   try:
     fullcmd = subprocess.check_output(["which", command])
   except subprocess.CalledProcessError as whe:
     fullcmd = command
-  print fullcmd
+  fullcmd = fullcmd.rstrip()
   #Determine if the command type using 'file'
   try:
     res = subprocess.check_output(["file", "-bi", fullcmd])
-    wut = (res.split(';',1)[0]).split('/',1)[1] 
-    if wut == "x-shellscript":
-      print "{} is a shell script. Ignoring...".format(fullcmd)
-    elif wut == "x-executable":
-      print "{} is an executable. Checking candidacy...".format(fullcmd)
-      #If in /bin or /usr/bin, clear for insertion
-      try:
-        path = subprocess.check_output(["dirname", fullcmd])
-        if path.rstrip() == "/bin" or path.rstrip()=="/usr/bin":
-          print "{} is a system binary. Migrating...".format(fullcmd)
-      except subprocess.CalledProcessError as pathe:
-        print pathe.returncode 
-      try:
-        libs = subprocess.check_output(["ldd", fullcmd])
-        print libs
-      except subprocess.CalledProcessError as libe:
-        print libe.returncode
   except subprocess.CalledProcessError as e:
     print e.returncode
-  
+  wut = (res.split(';',1)[0]).split('/',1)[1]
+  if wut == "x-shellscript":
+    print "{} is a shell script. Ignoring...".format(fullcmd)
+  elif wut == "x-executable":
+    print "{} is an executable. Checking candidacy...".format(fullcmd)
+    #If in /bin or /usr/bin, clear for insertion
+    try:
+      path = subprocess.check_output(["dirname", fullcmd])
+      if path.rstrip() == "/bin" or path.rstrip()=="/usr/bin":
+        print "{} is a system binary. Migrating...".format(fullcmd)
+    except subprocess.CalledProcessError as pathe:
+      print pathe.returncode
+    try:
+      libs = subprocess.check_output(["ldd", fullcmd])
+      print libs
+    except subprocess.CalledProcessError as libe:
+      print libe.returncode
 
-#  job.command_line = wu.rstrip()
+  job.rsc_fpops_est = 1e9
+
+  job.wu_template="""<input_template>
+  <file_info>
+  </file_info>
+  <workunit>
+    <file_ref>
+      <open_name>in</open_name>
+    </file_ref>
+    <command_line><![CDATA[{}]]></command_line>
+    <rsc_disk_bound>3000000000.00</rsc_disk_bound>
+  </workunit>
+</input_template>""".format(wu.rstrip())
+
+  job.result_template="""<output_template>
+  <file_info>
+    <name><OUTFILE_0/></name>
+    <generated_locally/>
+    <max_nbytes>50000000</max_nbytes>
+    <url><UPLOAD_URL/></url>
+  </file_info>
+  <result>
+    <file_name><OUTFILE_0/></file_name>
+    <open_name>out</open_name>
+  </result>
+</output_template>"""
+
+
   batch.jobs.append(copy.copy(job))
 
-r = submit_api.submit_batch(batch)
+r = submit_api.estimate_batch(batch)
 
 #print "Batch Submitted"
 #print "---------------"
