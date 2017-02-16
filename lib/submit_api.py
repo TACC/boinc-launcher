@@ -104,12 +104,10 @@ class REQUEST:
         return
 
 def do_http_post(req, project_url, handler='submit_rpc_handler.php'):
-    print req
     url = project_url + handler
     params = urllib.urlencode({'request': req})
     f = urllib.urlopen(url, params)
     reply = f.read()
-    print reply
     return ET.fromstring(reply)
 
 ########### API FUNCTIONS START HERE ###############
