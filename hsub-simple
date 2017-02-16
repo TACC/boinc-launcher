@@ -26,41 +26,17 @@ batch.jobs = []
 job_file=open(sys.argv[1], "r")
 
 job = submit_api.JOB_DESC()
+f = submit_api.FILE_DESC()
+f.mode = 'remote'
+f.url = 'http://isaac.ssl.berkeley.edu/validate_logic.txt'
+f.md5 = "eec5a142cea5202c9ab2e4575a8aaaa7"
+f.nbytes = 4250
+job.files = [f]
 
 for wu in job_file:
   command=wu.split()[0]
-  try:
-    fullcmd = subprocess.check_output(["which", command])
-  except subprocess.CalledProcessError as whe:
-    fullcmd = command
-  fullcmd = fullcmd.rstrip()
-  #Determine if the command type using 'file'
-  try:
-    res = subprocess.check_output(["file", "-bi", fullcmd])
-  except subprocess.CalledProcessError as e:
-    print e.returncode
-  wut = (res.split(';',1)[0]).split('/',1)[1]
-  if wut == "x-shellscript":
-    print "{} is a shell script. Ignoring...".format(fullcmd)
-  elif wut == "x-executable":
-    print "{} is an executable. Checking candidacy...".format(fullcmd)
-    #If in /bin or /usr/bin, clear for insertion
-    try:
-      path = subprocess.check_output(["dirname", fullcmd])
-    except subprocess.CalledProcessError as pathe:
-      path = "."
-    if path.rstrip() == "/bin" or path.rstrip()=="/usr/bin":
-      print "{} is a system binary. Executing remotely...".format(fullcmd)
-    try:
-      libs = subprocess.check_output(["ldd", fullcmd])
-    except subprocess.CalledProcessError as libe:
-      libs = None
-    if libs == None:
-      print "{} is a static binary. Migrating...".format(fullcmd)
-       
-    else:
-      print "{} is a dynamic binary. Checking for non-standard dependencies...".format(fullcmd)
-
+  if command == "vina":
+    pass 
   job.rsc_fpops_est = 1e9
 
   job.wu_template="""<input_template>
@@ -91,7 +67,7 @@ for wu in job_file:
 
   batch.jobs.append(copy.copy(job))
 
-r = submit_api.estimate_batch(batch)
+r = submit_api.submit_batch(batch)
 
 #print "Batch Submitted"
 #print "---------------"
