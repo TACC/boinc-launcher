@@ -82,6 +82,8 @@ for wu in job_file:
     f.source = m5h
     job.files.append(copy.copy(f))
     file_info = file_info + """<file_info>
+<sticky/>
+<no_delete/>
 </file_info>
 """
     file_ref = file_ref + """<file_ref>
