@@ -23,6 +23,7 @@ import copy
 import xml.etree.ElementTree as ET
 import requests
     # you'll need to "yip install requests"
+import hashlib
 
 # describes an input file
 #
@@ -58,8 +59,9 @@ class JOB_DESC:
             xml += '<wu_template>\n%s\n</wu_template>\n'%self.wu_template
         if hasattr(self, 'result_template'):
             xml += '<result_template>\n%s\n</result_template>\n'%self.result_template
-        for file in self.files:
-            xml += file.to_xml()
+        if hasattr(self, 'files'):
+            for file in self.files:
+                xml += file.to_xml()
         xml += '</job>\n'
         return xml
 
@@ -104,10 +106,12 @@ class REQUEST:
         return
 
 def do_http_post(req, project_url, handler='submit_rpc_handler.php'):
+    print req
     url = project_url + handler
     params = urllib.urlencode({'request': req})
     f = urllib.urlopen(url, params)
     reply = f.read()
+    print "REPLY:", reply
     return ET.fromstring(reply)
 
 ########### API FUNCTIONS START HERE ###############
@@ -171,14 +175,14 @@ def query_job(req):
     return do_http_post(req_xml, req.project)
 
 def get_output_file(req):
-    auth_str = md5.new(req.authenticator+req.instance_name).digest()
+    auth_str = hashlib.md5(req.authenticator+req.instance_name).hexdigest()
     name = req.instance_name
     file_num = req.file_num
-    return project_url+"/get_output.php?cmd=result_file&result_name=%s&file_num=%s&auth_str=%s"%(name, file_num, auth_str)
+    return req.project+"/get_output.php?cmd=result_file&result_name=%s&file_num=%s&auth_str=%s"%(name, file_num, auth_str)
 
 def get_output_files(req):
-    auth_str = md5.new(req.authenticator+req.batch_id).digest()
-    return project_url+"/get_output.php?cmd=batch_files&batch_id=%s&auth_str=%s"%(req.batch_id, auth_str)
+    auth_str = hashlib.md5(req.authenticator+str(req.batch_id)).hexdigest()
+    return req.project+"/get_output.php?cmd=batch_files&batch_id=%s&auth_str=%s"%(req.batch_id, auth_str)
 
 def retire_batch(req):
     req_xml = ('<retire_batch>\n'
@@ -191,6 +195,13 @@ def retire_batch(req):
 def submit_batch(req):
     return do_http_post(req.to_xml('submit_batch'), req.project)
 
+# see if reply is error.
+# if so print the message and return True
+#
+def check_error(response):
+    if response.find('error') is not None:
+         print 'error: ', response.find('error').find('error_msg').text
+         return True
 
 ############ FILE MANAGEMENT API ##############
 
@@ -203,7 +214,7 @@ class QUERY_FILES_REQ:
         '<authenticator>%s</authenticator>\n'
         '<batch_id>%d</batch_id>\n') %(self.authenticator, self.batch_id)
         for name in self.boinc_names:
-            xml += '<md5>%s</md5>\n' %(name)
+            xml += '<phys_name>%s</phys_name>\n' %(name)
         xml += '</query_files>\n'
         return xml
 
@@ -216,9 +227,13 @@ class UPLOAD_FILES_REQ:
         '<authenticator>%s</authenticator>\n'
         '<batch_id>%d</batch_id>\n') %(self.authenticator, self.batch_id)
         for name in self.boinc_names:
-            xml += '<md5>%s</md5>\n' %(name)
+            xml += '<phys_name>%s</phys_name>\n' %(name)
         xml += '</upload_files>\n'
         return xml
+
+def query_files(query_req):
+    reply = do_http_post(query_req.to_xml(), query_req.project, 'job_file.php')
+    return reply
 
 # This actually does two RPCs:
 # query_files() to find what files aren't already on server

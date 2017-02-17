@@ -52,10 +52,24 @@ batch.batch_id = batch_id
 batch.jobs = []
 
 # Setup the upload request object
-freq = submit_api.UPLOAD_FILES_REQ
-freq.project = project_url
-freq.authenticator = project_auth
-freq.batch_id = batch_id
+ufr = submit_api.UPLOAD_FILES_REQ()
+ufr.project = project_url
+ufr.authenticator = project_auth
+ufr.batch_id = batch_id
+ufr.local_names = []
+ufr.boinc_names = []
+
+#ufr.local_names.append('ZINC02884829-0000.pdbqt')
+#ufr.boinc_names.append("{}_{}".format(md5('ZINC02884829-0000.pdbqt'),'ZINC02884829-0000.pdbqt'))
+
+#print ufr.to_xml()
+#ufrr = submit_api.upload_files(ufr)
+#if ufrr[0].tag == 'error':
+#  print 'error: ', ufrr[0].find('error_msg').text
+
+#print 'success'
+#sys.exit()
+
 
 # Iterate through the job file
 job_file=open(sys.argv[1], "r")
@@ -64,23 +78,19 @@ job_file=open(sys.argv[1], "r")
 for wu in job_file:
   job = submit_api.JOB_DESC()
   job.files = []
-  ufr = submit_api.UPLOAD_FILES_REQ()
-  ufr.project = project_url
-  ufr.authenticator = project_auth
-  ufr.batch_id = batch_id
-  ufr.local_names = []
-  ufr.boinc_names = []
   file_ref = ""
   file_info = ""
   wu_args=wu.split()
-  if wu_args[0] == "vina":
+  if wu_args[0] == "./vina":
     #This is our current candidate.   
     f = submit_api.FILE_DESC()
     f.mode = 'local_staged'
     #TODO: Get the full path here
     m5h = md5(wu_args[0])
-    f.source = m5h
+    f.source = "{}_{}".format(m5h,"vina")
     job.files.append(copy.copy(f))
+    ufr.local_names.append('vina')
+    ufr.boinc_names.append("{}_vina".format(m5h))
     file_info = file_info + """<file_info>
 <sticky/>
 <no_delete/>
@@ -89,12 +99,12 @@ for wu in job_file:
     file_ref = file_ref + """<file_ref>
 <open_name>{}</open_name>
 </file_ref>
-""".format(wu_args[0])
+""".format('vina')
 
     job.rsc_fpops_est = 1e10
 
     #Identify input files
-    for a in wu_args[1:]:
+    for a in wu_args[1:5]:
       if a.startswith("--"):
         #This is an argument flag, ignore
         pass
@@ -103,12 +113,12 @@ for wu in job_file:
         f = submit_api.FILE_DESC()
         f.mode = 'local_staged'
         m5h = md5(a)
-        f.source = m5h
+        f.source = "{}_{}".format(m5h,a)
         job.files.append(copy.copy(f))
 
         # Establish file info for upload
         ufr.local_names.append(a)
-        ufr.boinc_names.append(m5h)
+        ufr.boinc_names.append("{}_{}".format(m5h,a))
 
         # Add file_ref to input_template
         file_info = file_info + """<file_info>
@@ -120,7 +130,7 @@ for wu in job_file:
         </file_ref>
 """.format(a)
         
-    #ufrr = submit_api.upload_files(ufr)
+
     job.wu_template = """<input_template>
                       {}
                       <workunit>
@@ -139,7 +149,7 @@ for wu in job_file:
     </file_info>
     <result>
       <file_name><OUTFILE_0/></file_name>
-      <open_name>out</open_name>
+      <open_name>outfile.pdbqt</open_name>
     </result>
     </output_template>"""
     batch.jobs.append(copy.copy(job))
@@ -147,11 +157,9 @@ for wu in job_file:
     #Alternative case: simply dump the command into another file to be run by launcher
 #    launch_file.write(wu)
 
-print batch.to_xml('submit')
+ufrr = submit_api.upload_files(ufr)
+if ufrr[0].tag == 'error':
+  print 'error: ', ufrr[0].find('error_msg').text
 
-#r = submit_api.submit_batch(batch)
-
-#print "Batch Submitted"
-#print "---------------"
-#print "{} work unit(s)".format(len(batch.jobs))
-#print "Batch ID: {}".format(r[0].text)
+r = submit_api.submit_batch(batch)
+print r[0].tag, r[0].find('error_msg').text
